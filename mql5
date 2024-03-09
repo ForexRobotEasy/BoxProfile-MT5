@@ -1,0 +1,160 @@
+mql5
+//+------------------------------------------------------------------+
+//|                            BoxProfile MT5                          |
+//|                     Developer: Forex Robot Easy Team               |
+//|                        Website: forexroboteasy.com                 |
+//+------------------------------------------------------------------+
+
+// Include necessary libraries and dependencies
+#include <Trade\Trade.mqh>
+#include <Arrays\ArrayObj.mqh>
+
+// Define input variables
+input int ProfileStepPoint = 10; // Fixed clustering step along the price axis
+
+//+------------------------------------------------------------------+
+//|                         Custom Indicator                          |
+//+------------------------------------------------------------------+
+class CBoxProfile : public CIndicator
+{
+private:
+   // Define indicator buffers
+   double profileBuffer[];
+   double clusterBuffer[];
+   
+   // Define class variables
+   int profileLength;
+   
+public:
+   // Constructor
+   CBoxProfile()
+   {
+      // Set indicator buffers
+      SetIndexBuffer(0, profileBuffer, INDICATOR_DATA);
+      SetIndexBuffer(1, clusterBuffer, INDICATOR_CALCULATIONS);
+      
+      // Set indicator labels
+      SetIndexLabel(0, 'Profile');
+      SetIndexLabel(1, 'Cluster');
+      
+      // Set indicator parameters
+      SetIndexStyle(0, DRAW_COLOR_LINE);
+      SetIndexStyle(1, DRAW_COLOR_LINE);
+      
+      // Initialize class variables
+      profileLength = 1;
+   }
+   
+   // Calculate indicator values
+   int OnCalculate(const int rates_total,
+                   const int prev_calculated,
+                   const datetime &time[],
+                   const double &open[],
+                   const double &high[],
+                   const double &low[],
+                   const double &close[],
+                   const long &tick_volume[],
+                   const long &volume[],
+                   const int &spread[])
+   {
+      // Clear indicator buffers
+      ArrayInitialize(profileBuffer, 0);
+      ArrayInitialize(clusterBuffer, 0);
+      
+      // Calculate profile values
+      if (rates_total > profileLength)
+      {
+         // Calculate profile
+         for (int i = prev_calculated; i < rates_total; i++)
+         {
+            double priceRange = high[i] - low[i];
+            int clusterCount = MathCeil(priceRange / ProfileStepPoint);
+            
+            for (int j = 0; j < clusterCount; j++)
+               clusterBuffer[i + j] += volume[i] / clusterCount;
+         }
+         
+         // Calculate profile length
+         profileLength *= 2;
+      }
+      
+      // Set indicator values
+      for (int i = prev_calculated; i < rates_total; i++)
+         profileBuffer[i] = clusterBuffer[i];
+      
+      // Return the value of prev_calculated
+      return rates_total;
+   }
+};
+
+//+------------------------------------------------------------------+
+//|                            Initialization                          |
+//+------------------------------------------------------------------+
+int OnInit()
+{
+   // Create an instance of the custom indicator
+   CBoxProfile indicator;
+   
+   // Add the custom indicator to the chart
+   IndicatorShortName('BoxProfile MT5');
+   IndicatorDigits(Digits);
+   IndicatorBuffers(2);
+   SetIndexBuffer(0, indicator.profileBuffer);
+   SetIndexBuffer(1, indicator.clusterBuffer);
+   SetIndexEmptyValue(0, 0);
+   SetIndexEmptyValue(1, 0);
+   
+   return(INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+//|                         Deinitialization                          |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+{
+   // Remove the custom indicator from the chart
+   ObjectsDeleteAll(0, OBJ_LABEL);
+}
+
+//+------------------------------------------------------------------+
+//|                          Custom Functions                         |
+//+------------------------------------------------------------------+
+void OnChartEvent(const int id,
+                  const long &lparam,
+                  const double &dparam,
+                  const string &sparam)
+{
+   // Recalculate the custom indicator on chart events
+   IndicatorRelease(0);
+   ChartRedraw();
+}
+
+//+------------------------------------------------------------------+
+//|               Custom Function to Handle Chart Scale               |
+//+------------------------------------------------------------------+
+void OnChartEvent(const int id,
+                  const long &lparam,
+                  const double &dparam,
+                  const string &sparam,
+                  const datetime &dtparam)
+{
+   // Recalculate the custom indicator when chart scale changes
+   if (id == CHARTEVENT_CHART_SCALE)
+   {
+      IndicatorRelease(0);
+      ChartRedraw();
+   }
+}
+
+//+------------------------------------------------------------------+
+//|                         Custom Function                          |
+//+------------------------------------------------------------------+
+void OnCalculate(const int rates_total,
+                 const int prev_calculated,
+                 const int begin,
+                 const double &price[])
+{
+   // Recalculate the custom indicator when new candle appears
+   IndicatorRelease(0);
+   ChartRedraw();
+}
